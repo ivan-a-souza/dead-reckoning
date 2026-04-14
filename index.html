@@ -3,102 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Inertial AI Navigator</title>
+    <title>Inertial AI Navigator Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #020205; font-family: 'Inter', sans-serif; color: #e2e8f0; }
+        body { margin: 0; overflow: hidden; background: #020205; font-family: 'JetBrains Mono', monospace; color: #e2e8f0; }
         canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1; }
-        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(16px); border: 1px solid rgba(51, 65, 85, 0.5); }
+        .glass { background: rgba(10, 10, 18, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .ui-layer { position: relative; z-index: 10; pointer-events: none; height: 100vh; display: flex; flex-direction: column; }
         .interactive { pointer-events: auto; }
-        .tech-font { font-family: 'JetBrains Mono', monospace; }
-        
-        /* Animações de Status */
-        .step-indicator { transition: all 0.2s ease; }
-        .step-active { background: #3b82f6; box-shadow: 0 0 20px #3b82f6; transform: scale(1.1); }
-        
-        /* Layout de Grade para Sensores */
-        .sensor-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 8px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .dot-green { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+        .dot-red { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+        #console-log { font-size: 9px; color: #60a5fa; max-height: 80px; overflow-y: auto; scroll-behavior: smooth; }
+        .step-hit { animation: step-hit 0.3s ease-out; }
+        @keyframes step-hit { 0% { background: #3b82f6; } 100% { background: transparent; } }
     </style>
 </head>
 <body>
 
     <div class="ui-layer">
-        <!-- Dashboard Superior -->
+        <!-- Header: Telemetria -->
         <div class="p-4 flex justify-between items-start">
-            <div class="glass p-4 rounded-2xl interactive w-40 shadow-2xl">
-                <p class="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-1">Trajeto</p>
-                <div class="flex items-baseline gap-1">
-                    <span id="dist-val" class="text-2xl font-black">0.00</span>
-                    <span class="text-xs opacity-50">m</span>
+            <div class="glass p-4 rounded-2xl interactive w-44 shadow-2xl">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-[10px] text-blue-400 font-bold uppercase">Distância</span>
+                    <span id="sys-status" class="text-[8px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">IDLE</span>
                 </div>
-                <div class="sensor-grid mt-3 opacity-80 tech-font">
-                    <span class="text-gray-500">Passos:</span> <span id="stat-steps">0</span>
-                    <span class="text-gray-500">Velo:</span> <span id="stat-speed">0.0m/s</span>
+                <div class="flex items-baseline gap-1">
+                    <span id="dist-val" class="text-3xl font-black">0.00</span>
+                    <span class="text-xs opacity-50 font-bold">m</span>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-2 text-[9px] opacity-70">
+                    <div>Passos: <span id="stat-steps" class="text-white">0</span></div>
+                    <div>Velo: <span id="stat-speed" class="text-white">0.0</span></div>
                 </div>
             </div>
 
-            <!-- Painel de Sensores em Tempo Real -->
-            <div class="glass p-3 rounded-2xl interactive w-44 shadow-2xl tech-font">
-                <p class="text-[9px] text-emerald-400 font-bold uppercase mb-2">Monitor Inercial</p>
-                <div class="space-y-1 text-[9px]">
-                    <div class="flex justify-between border-b border-white/5 pb-1">
-                        <span class="opacity-50">Acc Raw:</span> <span id="raw-acc">0.00</span>
-                    </div>
-                    <div class="flex justify-between border-b border-white/5 pb-1">
-                        <span class="opacity-50">Acc Filt:</span> <span id="filt-acc" class="text-emerald-400">0.00</span>
-                    </div>
-                    <div class="flex justify-between border-b border-white/5 pb-1">
-                        <span class="opacity-50">Heading:</span> <span id="raw-hd">0°</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="opacity-50">GPS Prec:</span> <span id="gps-acc" class="text-yellow-500">---</span>
-                    </div>
+            <!-- Painel de Sensores Ativos -->
+            <div class="glass p-3 rounded-2xl interactive w-48 shadow-2xl text-[9px] space-y-1">
+                <p class="text-emerald-400 font-bold uppercase mb-2 flex items-center">
+                    <span class="status-dot dot-green"></span> Sensores Ativos
+                </p>
+                <div class="flex justify-between">
+                    <span class="opacity-50">Acc (Max):</span> <span id="raw-acc">0.00</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="opacity-50">Acc (Filt):</span> <span id="filt-acc" class="text-emerald-400">0.00</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="opacity-50">Heading:</span> <span id="raw-hd">0°</span>
+                </div>
+                <div class="flex justify-between border-t border-white/5 pt-1 mt-1">
+                    <span class="opacity-50 text-blue-300">ML Model:</span> <span id="ml-status" class="text-blue-300 italic">Estático</span>
                 </div>
             </div>
         </div>
 
         <div class="spacer flex-grow"></div>
 
-        <!-- Painel de Controle Inferior -->
-        <div class="p-4 pb-10 flex flex-col gap-4 interactive">
-            
-            <!-- Logs de IA (Feedback Visual do Treino) -->
-            <div id="ai-log" class="glass p-3 rounded-xl mx-auto w-full max-w-sm text-[10px] tech-font text-blue-300 border-l-4 border-blue-500 hidden">
-                > IA: Otimizando modelo de passo baseado em GPS...
+        <!-- Rodapé: Logs e Controles -->
+        <div class="p-4 pb-8 flex flex-col gap-3 interactive">
+            <div id="console-log" class="glass p-3 rounded-xl mx-auto w-full max-w-lg bg-black/60 border-blue-500/20">
+                > Aguardando inicialização do sistema...
             </div>
 
             <div class="glass p-6 rounded-[2.5rem] shadow-2xl max-w-lg mx-auto w-full">
-                <!-- Seção Inicial -->
+                <!-- Tela Inicial -->
                 <div id="setup-area">
-                    <h2 class="text-center font-bold text-lg mb-4">Sistema de Navegação IA</h2>
-                    <button id="btn-init" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl uppercase tracking-tighter transition-all active:scale-95">
-                        Inicializar Sensores
+                    <div class="text-center mb-6">
+                        <h2 class="font-black text-xl tracking-tighter">AI INERTIAL NAVIGATOR</h2>
+                        <p class="text-[10px] opacity-40 uppercase mt-1">Navegação de Alta Precisão sem GPS</p>
+                    </div>
+                    <button id="btn-init" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-600/20">
+                        Inicializar Sistema
                     </button>
                 </div>
 
-                <!-- Seção Ativa -->
+                <!-- Painel de Operação -->
                 <div id="active-area" class="hidden space-y-4">
-                    <div class="flex justify-around items-center py-2">
-                        <div id="step-led" class="w-3 h-3 rounded-full bg-slate-700 step-indicator"></div>
-                        <span id="mode-badge" class="px-3 py-1 rounded-full bg-slate-800 text-[10px] font-bold uppercase tracking-widest text-slate-400">Em Espera</span>
-                        <div id="ml-badge" class="text-[9px] text-blue-400 font-bold uppercase">Modelo: Estático</div>
-                    </div>
-
                     <div class="grid grid-cols-2 gap-3">
-                        <button id="btn-train" class="bg-yellow-600/20 text-yellow-500 border border-yellow-600/30 py-4 rounded-2xl font-bold text-xs uppercase flex flex-col items-center">
-                            <span>🛰️ Treino com GPS</span>
-                            <span class="text-[8px] opacity-60">IA aprende seu passo</span>
+                        <button id="btn-train" class="bg-yellow-600/10 text-yellow-500 border border-yellow-600/30 py-4 rounded-2xl font-bold text-[11px] uppercase flex flex-col items-center justify-center">
+                            <span>🛰️ Calibrar IA + GPS</span>
+                            <span class="text-[8px] opacity-60">(Caminhe 15 seg)</span>
                         </button>
-                        <button id="btn-run" disabled class="bg-slate-800 text-slate-600 py-4 rounded-2xl font-bold text-xs uppercase cursor-not-allowed">
-                            🚀 Iniciar Navegação
+                        <button id="btn-run" disabled class="bg-slate-800 text-slate-500 py-4 rounded-2xl font-bold text-[11px] uppercase cursor-not-allowed">
+                            🚀 Iniciar Rastreio
                         </button>
                     </div>
 
-                    <div class="flex gap-2 border-t border-white/5 pt-4">
-                        <button id="btn-clear-path" class="flex-1 py-3 text-[10px] font-bold uppercase text-blue-400 bg-blue-400/10 rounded-xl">Limpar Trajeto</button>
-                        <button id="btn-reset" class="px-5 py-3 text-[10px] font-bold uppercase text-red-500 bg-red-500/10 rounded-xl">Hard Reset</button>
+                    <div class="flex gap-2 border-t border-white/10 pt-4">
+                        <button id="btn-clear" class="flex-1 py-3 text-[10px] font-bold uppercase text-blue-400 bg-blue-400/10 rounded-xl hover:bg-blue-400/20 transition-all">Limpar Trajeto</button>
+                        <button id="btn-reset" class="px-4 py-3 text-[10px] font-bold uppercase text-red-500 bg-red-500/10 rounded-xl hover:bg-red-500/20">Reset</button>
                     </div>
                 </div>
             </div>
@@ -106,231 +102,269 @@
     </div>
 
     <script>
-        // --- MACHINE LEARNING: STEP LENGTH MODEL ---
-        class StepLengthModel {
+        // --- MACHINE LEARNING: REGRESSÃO LINEAR DE PASSO ---
+        class MLStepModel {
             constructor() {
-                this.weights = { bias: 0.75, varianceWeight: 0.05, freqWeight: 0.01 };
-                this.trainingData = []; // { steps, distance, avgVariance, avgFreq }
+                // Pesos iniciais médios
+                this.bias = 0.70; 
+                this.varianceFactor = 0.04; 
+                this.cadenceFactor = 0.02;
+                this.trained = false;
             }
 
-            predict(variance, frequency) {
-                // Modelo de regressão linear para prever comprimento do passo baseado na intensidade do movimento
-                return this.weights.bias + (variance * this.weights.varianceWeight) + (frequency * this.weights.freqWeight);
+            predict(variance, cadence) {
+                // Predição baseada na força do impacto (variância) e velocidade (cadência)
+                return this.bias + (variance * this.varianceFactor) + (cadence * this.cadenceFactor);
             }
 
-            train(gpsDist, stepCount, variance, frequency) {
-                if (stepCount < 5) return;
-                const realStepLen = gpsDist / stepCount;
+            updateWeights(actualDistance, stepCount, avgVariance, avgCadence) {
+                if (stepCount < 3) return;
+                const actualStepLen = actualDistance / stepCount;
                 
-                // Aprendizado incremental simples (Stochastic Gradient Descent simplificado)
-                const learningRate = 0.1;
-                this.weights.bias += (realStepLen - this.predict(variance, frequency)) * learningRate;
+                // Aprendizado por erro (Delta Rule)
+                const error = actualStepLen - this.predict(avgVariance, avgCadence);
+                const learningRate = 0.2;
+
+                this.bias += error * learningRate;
+                this.trained = true;
                 
-                addAILog(`Modelo atualizado: Passo base agora é ${this.weights.bias.toFixed(2)}m`);
-                document.getElementById('ml-badge').textContent = "Modelo: IA Otimizada";
-                document.getElementById('ml-badge').classList.replace('text-blue-400', 'text-emerald-400');
+                document.getElementById('ml-status').textContent = "IA Otimizada";
+                document.getElementById('ml-status').className = "text-emerald-400 font-bold";
             }
         }
 
-        // --- SISTEMA DE FILTRAGEM (DSP) ---
-        class LowPassFilter {
-            constructor(size = 5) {
+        // --- DSP: FILTRO DE RUÍDO ---
+        class MovingAverageFilter {
+            constructor(size = 10) {
                 this.size = size;
-                this.buffer = [];
+                this.history = [];
             }
-            push(val) {
-                this.buffer.push(val);
-                if (this.buffer.length > this.size) this.buffer.shift();
-                return this.buffer.reduce((a, b) => a + b, 0) / this.buffer.length;
+            apply(val) {
+                this.history.push(val);
+                if (this.history.length > this.size) this.history.shift();
+                return this.history.reduce((a, b) => a + b, 0) / this.history.length;
             }
         }
 
-        // --- ESTADO GLOBAL ---
+        // --- ESTADO ---
         let state = {
-            mode: 'IDLE',
+            mode: 'IDLE', // IDLE, TRAINING, RUNNING
             steps: 0,
             distance: 0,
             heading: 0,
             lastStepTime: 0,
-            accBuffer: new LowPassFilter(8),
-            ml: new StepLengthModel(),
             pos: { x: 0, z: 0 },
             path: [new THREE.Vector3(0, 0, 0)],
             
-            // Variáveis de Treino
-            trainStartGps: null,
+            filter: new MovingAverageFilter(8),
+            ml: new MLStepModel(),
+            
+            // Variáveis de calibração
+            trainGPSStart: null,
+            trainSteps: 0,
             trainVariances: [],
             trainStartTime: 0
         };
 
-        function addAILog(msg) {
-            const el = document.getElementById('ai-log');
-            el.textContent = `> IA: ${msg}`;
-            el.classList.remove('hidden');
+        const consoleLog = document.getElementById('console-log');
+        function addLog(msg, isError = false) {
+            const line = document.createElement('div');
+            line.style.color = isError ? '#ef4444' : '#60a5fa';
+            line.innerHTML = `> ${msg}`;
+            consoleLog.appendChild(line);
+            consoleLog.scrollTop = consoleLog.scrollHeight;
         }
 
-        // --- ENGINE 3D (THIRD PERSON VIEW) ---
+        // --- THREE.JS: TERCEIRA PESSOA ---
         let scene, camera, renderer, player, trail, grid;
-        const CAM_OFFSET = new THREE.Vector3(0, 8, 12);
+        const CAM_DISTANCE = 12;
+        const CAM_HEIGHT = 8;
 
         function init3D() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x020205);
-            scene.fog = new THREE.Fog(0x020205, 10, 50);
+            try {
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x020205);
+                scene.fog = new THREE.Fog(0x020205, 10, 60);
 
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            document.body.appendChild(renderer.domElement);
+                camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                document.body.appendChild(renderer.domElement);
 
-            // Cenário Cibernético
-            grid = new THREE.GridHelper(1000, 100, 0x1e293b, 0x0f172a);
-            scene.add(grid);
+                // Grid Neon
+                grid = new THREE.GridHelper(1000, 100, 0x1e1e2e, 0x11111b);
+                scene.add(grid);
 
-            // Player (Terceira Pessoa)
-            player = new THREE.Group();
-            const body = new THREE.Mesh(
-                new THREE.CapsuleGeometry(0.4, 0.8, 4, 16),
-                new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x3b82f6, emissiveIntensity: 0.2 })
-            );
-            const eye = new THREE.Mesh(
-                new THREE.BoxGeometry(0.6, 0.1, 0.2),
-                new THREE.MeshBasicMaterial({ color: 0x60a5fa })
-            );
-            eye.position.set(0, 0.4, -0.4);
-            player.add(body, eye);
-            player.position.y = 1;
-            scene.add(player);
+                // Avatar
+                player = new THREE.Group();
+                const bodyGeo = new THREE.CapsuleGeometry(0.4, 1, 4, 16);
+                const bodyMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x3b82f6, 
+                    emissive: 0x3b82f6, 
+                    emissiveIntensity: 0.3 
+                });
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                
+                const eye = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.6, 0.1, 0.2),
+                    new THREE.MeshBasicMaterial({ color: 0x60a5fa })
+                );
+                eye.position.set(0, 0.6, -0.4);
+                
+                player.add(body, eye);
+                player.position.y = 1.2;
+                scene.add(player);
 
-            // Luzes
-            const pLight = new THREE.PointLight(0x3b82f6, 2, 20);
-            pLight.position.set(0, 5, 0);
-            player.add(pLight);
-            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+                // Luz
+                const light = new THREE.PointLight(0x3b82f6, 2, 20);
+                light.position.set(0, 5, 2);
+                player.add(light);
+                scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-            // Rastro
-            trail = new THREE.Line(
-                new THREE.BufferGeometry().setFromPoints(state.path),
-                new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6 })
-            );
-            scene.add(trail);
+                // Rastro
+                const lineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.5 });
+                trail = new THREE.Line(new THREE.BufferGeometry().setFromPoints(state.path), lineMat);
+                scene.add(trail);
 
-            animate();
+                animate();
+                addLog("Motor 3D Renderizado.");
+            } catch (e) {
+                addLog("Erro Three.js: " + e.message, true);
+            }
         }
 
         function animate() {
             requestAnimationFrame(animate);
             
-            // Câmera em Terceira Pessoa Suave
-            const targetCamPos = player.position.clone().add(
-                CAM_OFFSET.clone().applyAxisAngle(new THREE.Vector3(0,1,0), player.rotation.y)
-            );
-            camera.position.lerp(targetCamPos, 0.05);
-            camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+            // Lógica de Terceira Pessoa (Segue o ângulo do player)
+            if (player) {
+                const angle = player.rotation.y;
+                const targetX = player.position.x + Math.sin(angle) * CAM_DISTANCE;
+                const targetZ = player.position.z + Math.cos(angle) * CAM_DISTANCE;
+                
+                camera.position.lerp(new THREE.Vector3(targetX, player.position.y + CAM_HEIGHT, targetZ), 0.08);
+                camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+            }
 
             renderer.render(scene, camera);
         }
 
-        // --- LOGICA DE MOVIMENTO E PRECISÃO ---
-        function handleStep(rawVariance) {
-            state.steps++;
-            document.getElementById('stat-steps').textContent = state.steps;
+        // --- LÓGICA DE MOVIMENTO ---
+        function onStepDetected(variance) {
+            const now = Date.now();
+            const cadence = 1000 / (now - state.lastStepTime || 1000);
             
-            // Feedback Visual do LED
-            const led = document.getElementById('step-led');
-            led.classList.add('step-active');
-            setTimeout(() => led.classList.remove('step-active'), 200);
-
-            // Predição do Comprimento do Passo (IA)
-            const freq = 1000 / (Date.now() - state.lastStepTime || 1000);
-            const stepLen = state.ml.predict(rawVariance, freq);
+            // IA prevê o tamanho do passo baseado na intensidade
+            const stepSize = state.ml.predict(variance, cadence);
             
-            // Cálculo de Vetor
+            // Vetor de movimento
             const rad = state.heading * (Math.PI / 180);
-            state.pos.x += Math.sin(rad) * stepLen;
-            state.pos.z += -Math.cos(rad) * stepLen;
+            state.pos.x += Math.sin(rad) * stepSize;
+            state.pos.z += -Math.cos(rad) * stepSize;
 
-            // Atualização do Modelo 3D
-            player.position.set(state.pos.x, 1, state.pos.z);
+            // Atualização do Avatar
+            player.position.set(state.pos.x, 1.2, state.pos.z);
             player.rotation.y = -rad;
 
+            // Atualização do Rastro
             state.path.push(new THREE.Vector3(state.pos.x, 0, state.pos.z));
             trail.geometry.setFromPoints(state.path);
 
             if (state.mode === 'RUNNING') {
-                state.distance += stepLen;
+                state.distance += stepSize;
                 document.getElementById('dist-val').textContent = state.distance.toFixed(2);
+            } else if (state.mode === 'TRAINING') {
+                state.trainSteps++;
+                state.trainVariances.push(variance);
             }
+
+            state.steps++;
+            document.getElementById('stat-steps').textContent = state.steps;
+            state.lastStepTime = now;
             
-            state.lastStepTime = Date.now();
+            // Feedback Visual
+            document.body.classList.add('step-hit');
+            setTimeout(() => document.body.classList.remove('step-hit'), 200);
         }
 
-        // --- SENSORES E GPS ---
+        // --- SENSORES ---
         async function startSensors() {
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                await DeviceMotionEvent.requestPermission();
-            }
+            addLog("Solicitando sensores...");
+            
+            try {
+                if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                    const res = await DeviceMotionEvent.requestPermission();
+                    if (res !== 'granted') throw new Error("Acesso aos sensores negado.");
+                }
 
-            window.addEventListener('devicemotion', (e) => {
-                const acc = e.accelerationIncludingGravity || {x:0, y:0, z:0};
-                const mag = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
-                const filt = state.accBuffer.push(mag);
+                window.addEventListener('devicemotion', (e) => {
+                    const acc = e.accelerationIncludingGravity || {x:0, y:0, z:0};
+                    if (acc.x === null) return;
+                    
+                    const mag = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
+                    const filtered = state.filter.apply(mag);
 
-                document.getElementById('raw-acc').textContent = mag.toFixed(2);
-                document.getElementById('filt-acc').textContent = filt.toFixed(2);
+                    document.getElementById('raw-acc').textContent = mag.toFixed(2);
+                    document.getElementById('filt-acc').textContent = filtered.toFixed(2);
 
-                // Algoritmo de Pico Adaptativo
-                const now = Date.now();
-                if (filt > 13.2 && (now - state.lastStepTime > 320)) {
-                    if (state.mode !== 'IDLE') {
-                        handleStep(filt - 9.8);
+                    // Detecção de Pico ( Threshold adaptativo inspirado em ML )
+                    const now = Date.now();
+                    if (filtered > 13.0 && (now - state.lastStepTime > 320)) {
+                        if (state.mode !== 'IDLE') {
+                            onStepDetected(filtered - 9.8);
+                        }
                     }
-                }
-            });
+                });
 
-            window.addEventListener('deviceorientation', (e) => {
-                let h = e.webkitCompassHeading || (360 - e.alpha);
-                if (h !== undefined) {
-                    state.heading = h;
-                    document.getElementById('raw-hd').textContent = Math.round(h) + "°";
-                }
-            });
+                window.addEventListener('deviceorientation', (e) => {
+                    let h = e.webkitCompassHeading || (360 - e.alpha);
+                    if (h !== undefined) {
+                        state.heading = h;
+                        document.getElementById('raw-hd').textContent = Math.round(h) + "°";
+                    }
+                });
 
-            document.getElementById('setup-area').classList.add('hidden');
-            document.getElementById('active-area').classList.remove('hidden');
+                document.getElementById('setup-area').classList.add('hidden');
+                document.getElementById('active-area').classList.remove('hidden');
+                addLog("Sistema Inercial OK.");
+            } catch (err) {
+                addLog("Erro: " + err.message, true);
+            }
         }
 
-        // --- TREINO INTELIGENTE ---
-        function startGpsTraining() {
+        // --- TREINAMENTO GPS + IA ---
+        function runGpsTraining() {
             state.mode = 'TRAINING';
-            state.steps = 0;
+            state.trainSteps = 0;
+            state.trainVariances = [];
             state.trainStartTime = Date.now();
             
-            document.getElementById('mode-badge').textContent = "Treinando...";
-            document.getElementById('mode-badge').classList.replace('text-slate-400', 'text-yellow-500');
+            document.getElementById('sys-status').textContent = "TREINO";
+            addLog("Aguardando fix de GPS...");
 
-            navigator.geolocation.getCurrentPosition((p) => {
-                state.trainStartGps = p.coords;
-                addAILog("GPS fixado. Caminhe em linha reta por 15 segundos.");
-            }, null, {enableHighAccuracy: true});
-
-            setTimeout(() => {
-                navigator.geolocation.getCurrentPosition((p) => {
-                    const dist = calculateHaversine(state.trainStartGps, p.coords);
-                    const avgVar = 3.5; // Simplificado para o exemplo
-                    const avgFreq = 1.8;
-                    
-                    state.ml.train(dist, state.steps, avgVar, avgFreq);
-                    
-                    state.mode = 'IDLE';
-                    document.getElementById('mode-badge').textContent = "Calibrado";
-                    document.getElementById('mode-badge').classList.replace('text-yellow-500', 'text-emerald-500');
-                    document.getElementById('btn-run').disabled = false;
-                    document.getElementById('btn-run').classList.remove('text-slate-600', 'bg-slate-800');
-                    document.getElementById('btn-run').classList.add('text-white', 'bg-emerald-600');
-                }, null, {enableHighAccuracy: true});
-            }, 15000);
+            navigator.geolocation.getCurrentPosition((pos) => {
+                state.trainGPSStart = pos.coords;
+                addLog("GPS OK. Caminhe em linha reta por 15 seg.");
+                
+                setTimeout(() => {
+                    navigator.geolocation.getCurrentPosition((endPos) => {
+                        const dist = calculateHaversine(state.trainGPSStart, endPos.coords);
+                        const avgVar = state.trainVariances.reduce((a,b)=>a+b,0) / (state.trainVariances.length || 1);
+                        
+                        // Atualiza modelo de IA
+                        state.ml.updateWeights(dist, state.trainSteps, avgVar, 1.8);
+                        
+                        state.mode = 'IDLE';
+                        document.getElementById('sys-status').textContent = "IDLE";
+                        addLog(`IA Calibrada! Distância GPS: ${dist.toFixed(1)}m`);
+                        
+                        const btnRun = document.getElementById('btn-run');
+                        btnRun.disabled = false;
+                        btnRun.className = "bg-emerald-600 text-white py-4 rounded-2xl font-bold text-[11px] uppercase shadow-lg shadow-emerald-600/20";
+                    }, null, {enableHighAccuracy: true});
+                }, 15000);
+            }, (err) => addLog("Erro GPS: " + err.message, true), {enableHighAccuracy: true});
         }
 
         function calculateHaversine(c1, c2) {
@@ -341,9 +375,9 @@
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        // --- INTERAÇÕES ---
+        // --- AÇÕES ---
         document.getElementById('btn-init').onclick = () => { init3D(); startSensors(); };
-        document.getElementById('btn-train').onclick = startGpsTraining;
+        document.getElementById('btn-train').onclick = runGpsTraining;
         
         document.getElementById('btn-run').onclick = () => {
             const btn = document.getElementById('btn-run');
@@ -351,18 +385,19 @@
                 state.mode = 'IDLE';
                 btn.textContent = "Continuar";
                 btn.classList.replace('bg-red-600', 'bg-emerald-600');
+                document.getElementById('sys-status').textContent = "PAUSADO";
             } else {
                 state.mode = 'RUNNING';
                 btn.textContent = "Pausar";
                 btn.classList.replace('bg-emerald-600', 'bg-red-600');
-                document.getElementById('mode-badge').textContent = "Navegando";
+                document.getElementById('sys-status').textContent = "ATIVO";
             }
         };
 
-        document.getElementById('btn-clear-path').onclick = () => {
+        document.getElementById('btn-clear').onclick = () => {
             state.path = [new THREE.Vector3(player.position.x, 0, player.position.z)];
             trail.geometry.setFromPoints(state.path);
-            addAILog("Trajeto visual limpo.");
+            addLog("Trajeto limpo.");
         };
 
         document.getElementById('btn-reset').onclick = () => location.reload();
