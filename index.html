@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Inertial AI Navigator Pro</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r146/three.min.js"></script>
+    <!-- Link ESTÁVEL r128 (O problema do travamento estava aqui) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #020205; font-family: 'JetBrains Mono', monospace; color: #e2e8f0; }
@@ -43,16 +44,16 @@
             <div class="glass p-3 rounded-2xl interactive w-full sm:w-56 shadow-2xl text-[9px] space-y-1">
                 <p class="text-emerald-400 font-bold uppercase mb-2 flex items-center">
                     <span id="status-dot" class="w-2 h-2 rounded-full bg-yellow-500 mr-2 shadow-[0_0_8px_rgba(234,179,8,0.5)]"></span> 
-                    Inteligência Artificial
+                    Monitor Inercial
                 </p>
                 <div class="flex justify-between">
-                    <span class="opacity-50">Confiança Modelo:</span> <span id="ml-conf">Lento...</span>
+                    <span class="opacity-50">Acc Original:</span> <span id="raw-acc">0.00</span>
                 </div>
                 <div class="flex justify-between">
-                    <span class="opacity-50">Acc Filtrada:</span> <span id="filt-acc" class="text-emerald-400">0.00</span>
+                    <span class="opacity-50">Acc Filtrada:</span> <span id="filt-acc" class="text-emerald-400 font-bold">0.00</span>
                 </div>
                 <div class="flex justify-between border-t border-white/5 pt-1 mt-1">
-                    <span class="opacity-50 text-blue-300">Status IA:</span> <span id="ml-status" class="text-blue-300 italic">Aguardando...</span>
+                    <span class="opacity-50 text-blue-300">Status IA:</span> <span id="ml-status" class="text-blue-300 italic">Estático</span>
                 </div>
             </div>
         </div>
@@ -62,24 +63,26 @@
         <!-- Rodapé: Logs e Controles -->
         <div class="p-4 pb-10 flex flex-col gap-3 interactive">
             <div id="console-log" class="glass p-3 mx-auto w-full max-w-lg bg-black/80 shadow-inner">
-                > Sistema carregado. Clique para iniciar.
+                > Sistema carregado. Clique em Inicializar para começar.
             </div>
 
             <div class="glass p-6 rounded-[2.5rem] shadow-2xl max-w-lg mx-auto w-full">
+                <!-- Área de Setup -->
                 <div id="setup-area">
                     <button id="btn-init" class="w-full btn-primary text-white font-black py-5 rounded-2xl uppercase tracking-widest transition-all">
                         Inicializar Sistema
                     </button>
-                    <p class="text-[9px] text-gray-500 text-center mt-3 uppercase tracking-tighter font-bold">Uso recomendado em ambiente externo para treino</p>
+                    <p class="text-[9px] text-gray-500 text-center mt-3 uppercase tracking-tighter font-bold">Autorize os sensores se solicitado</p>
                 </div>
 
+                <!-- Área Ativa -->
                 <div id="active-area" class="hidden space-y-4">
                     <div class="grid grid-cols-2 gap-3">
                         <button id="btn-train" class="bg-yellow-600/10 text-yellow-500 border border-yellow-600/30 py-4 rounded-2xl font-bold text-[11px] uppercase flex flex-col items-center justify-center text-center">
-                            <span>🛰️ Calibrar com GPS</span>
+                            <span>🛰️ Calibrar IA</span>
                             <span class="text-[8px] opacity-60">(Caminhe 15 passos)</span>
                         </button>
-                        <button id="btn-run" disabled class="bg-slate-800 text-slate-500 py-4 rounded-2xl font-bold text-[11px] uppercase cursor-not-allowed">
+                        <button id="btn-run" disabled class="bg-slate-800 text-slate-500 py-4 rounded-2xl font-bold text-[11px] uppercase cursor-not-allowed transition-all">
                             🚀 Iniciar Rastreio
                         </button>
                     </div>
@@ -89,7 +92,9 @@
                         <button id="btn-reset" class="px-4 py-3 text-[10px] font-bold uppercase text-red-500 bg-red-500/10 rounded-xl">Hard Reset</button>
                     </div>
                     
-                    <button id="btn-simulate" class="w-full py-2 text-[9px] text-gray-600 border border-dashed border-gray-700 rounded-lg">Simular Passo (Teste de Emergência)</button>
+                    <button id="btn-simulate" class="w-full py-2 text-[9px] text-emerald-500 border border-dashed border-emerald-900 rounded-lg hover:bg-emerald-900/20">
+                        Simular Passo (Teste de Gráficos 3D)
+                    </button>
                 </div>
             </div>
         </div>
@@ -101,24 +106,21 @@
             constructor() {
                 this.stepBase = 0.72;
                 this.varianceWeight = 0.05;
-                this.isTrained = false;
-                this.history = [];
             }
             predict(variance) {
                 return this.stepBase + (variance * this.varianceWeight);
             }
-            update(gpsDist, steps, avgVar) {
+            update(gpsDist, steps) {
                 if (steps < 5) return;
                 const realStep = gpsDist / steps;
-                this.stepBase = (this.stepBase * 0.4) + (realStep * 0.6); // Média ponderada simples
-                this.isTrained = true;
+                this.stepBase = (this.stepBase * 0.3) + (realStep * 0.7); 
+                
                 document.getElementById('ml-status').textContent = "IA Calibrada";
-                document.getElementById('ml-conf').textContent = "Alta";
                 document.getElementById('status-dot').className = "w-2 h-2 rounded-full bg-green-500 mr-2 shadow-[0_0_8px_rgba(34,197,94,0.5)]";
             }
         }
 
-        // --- ENGINE 3D ---
+        // --- ESTADO DO SISTEMA ---
         let scene, camera, renderer, player, trail;
         const state = {
             mode: 'IDLE',
@@ -129,12 +131,11 @@
             path: [new THREE.Vector3(0,0,0)],
             ai: new InertialAI(),
             lastStep: 0,
-            // Treino
             tSteps: 0,
-            tVars: [],
             tGPS: null
         };
 
+        // --- LOGGER INTERNO ---
         function addLog(msg, color = "#60a5fa") {
             const l = document.getElementById('console-log');
             const d = document.createElement('div');
@@ -144,8 +145,13 @@
             l.scrollTop = l.scrollHeight;
         }
 
+        // --- INICIALIZAÇÃO 3D (Versão R128 Estável) ---
         function init3D() {
             try {
+                if (typeof THREE === 'undefined') {
+                    throw new Error("A biblioteca Three.js falhou ao carregar.");
+                }
+
                 scene = new THREE.Scene();
                 scene.background = new THREE.Color(0x020205);
                 scene.fog = new THREE.Fog(0x020205, 10, 60);
@@ -159,11 +165,16 @@
                 scene.add(new THREE.GridHelper(1000, 100, 0x1e1e2e, 0x11111b));
 
                 player = new THREE.Group();
-                const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 1.2, 4, 16), new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x3b82f6, emissiveIntensity: 0.3 }));
-                const eye = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 0.2), new THREE.MeshBasicMaterial({ color: 0x60a5fa }));
-                eye.position.set(0, 0.6, -0.4);
+                // Usando CylinderGeometry que é garantido funcionar em r128
+                const bodyGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.4, 16);
+                const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x1d4ed8, emissiveIntensity: 0.5 });
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                
+                const eye = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0x60a5fa }));
+                eye.position.set(0, 0.5, -0.4);
+                
                 player.add(body, eye);
-                player.position.y = 1;
+                player.position.y = 0.7;
                 scene.add(player);
 
                 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -171,14 +182,14 @@
                 pL.position.set(0, 5, 2);
                 player.add(pL);
 
-                trail = new THREE.Line(new THREE.BufferGeometry().setFromPoints(state.path), new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.5 }));
+                trail = new THREE.Line(new THREE.BufferGeometry().setFromPoints(state.path), new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.8, linewidth: 2 }));
                 scene.add(trail);
 
                 animate();
-                addLog("Motor 3D Iniciado.", "#4ade80");
+                addLog("Motor 3D Iniciado com sucesso.", "#4ade80");
                 return true;
             } catch(e) {
-                addLog("Erro Three.js: " + e.message, "#f87171");
+                addLog("ERRO 3D CRÍTICO: " + e.message, "#f87171");
                 return false;
             }
         }
@@ -186,66 +197,81 @@
         function animate() {
             requestAnimationFrame(animate);
             if(player) {
+                // Suavização e posicionamento em terceira pessoa
                 const angle = player.rotation.y;
-                const tx = player.position.x + Math.sin(angle) * 12;
-                const tz = player.position.z + Math.cos(angle) * 12;
-                camera.position.lerp(new THREE.Vector3(tx, player.position.y + 8, tz), 0.1);
-                camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+                const tx = player.position.x + Math.sin(angle) * 10;
+                const tz = player.position.z + Math.cos(angle) * 10;
+                camera.position.lerp(new THREE.Vector3(tx, player.position.y + 7, tz), 0.1);
+                camera.lookAt(player.position.x, player.position.y + 0.5, player.position.z);
             }
             renderer.render(scene, camera);
         }
 
-        function onStep(variance) {
-            const sl = state.ai.predict(variance);
-            const r = state.heading * (Math.PI / 180);
-            state.pos.x += Math.sin(r) * sl;
-            state.pos.z += -Math.cos(r) * sl;
+        // --- SISTEMA DE MOVIMENTO E RASTREIO ---
+        function triggerStep(variance) {
+            const stepLen = state.ai.predict(variance);
+            const rad = state.heading * (Math.PI / 180);
+            
+            // Movimento reverso em Z porque a câmera olha para -Z
+            state.pos.x += Math.sin(rad) * stepLen;
+            state.pos.z += -Math.cos(rad) * stepLen;
 
-            player.position.set(state.pos.x, 1, state.pos.z);
-            player.rotation.y = -r;
+            player.position.set(state.pos.x, 0.7, state.pos.z);
+            player.rotation.y = -rad;
 
             state.path.push(new THREE.Vector3(state.pos.x, 0, state.pos.z));
             trail.geometry.setFromPoints(state.path);
 
             if(state.mode === 'RUNNING') {
-                state.dist += sl;
+                state.dist += stepLen;
                 document.getElementById('dist-val').textContent = state.dist.toFixed(2);
             } else if(state.mode === 'TRAINING') {
                 state.tSteps++;
-                state.tVars.push(variance);
             }
 
             state.steps++;
             document.getElementById('stat-steps').textContent = state.steps;
+            
+            // Efeito visual no ecrã
             document.body.classList.add('step-hit');
             setTimeout(() => document.body.classList.remove('step-hit'), 200);
         }
 
-        // --- SENSORES COM TRATAMENTO DE ERRO ---
-        async function startSystem() {
-            addLog("Solicitando acesso...");
+        // --- ATIVAÇÃO DOS SENSORES ---
+        async function requestSensors() {
+            addLog("A pedir permissão ao navegador...");
             
             try {
-                // Tenta Motion primeiro (exige clique no iOS)
+                // 1. Pedido de permissão do Acelerômetro (Necessário iOS)
                 if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                     const res = await DeviceMotionEvent.requestPermission();
-                    if(res !== 'granted') throw new Error("Acesso ao Movimento negado.");
+                    if(res !== 'granted') throw new Error("Acesso de movimento negado.");
                 }
 
-                // Tenta Orientation
+                // 2. Pedido da Bússola
                 if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     await DeviceOrientationEvent.requestPermission();
                 }
 
+                let buffer = [];
                 window.addEventListener('devicemotion', (e) => {
-                    const acc = e.accelerationIncludingGravity || {x:0, y:0, z:0};
-                    if (acc.x === null) return;
+                    const acc = e.accelerationIncludingGravity || e.acceleration;
+                    if (!acc || acc.x === null) return;
+                    
                     const mag = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
-                    document.getElementById('filt-acc').textContent = mag.toFixed(2);
+                    document.getElementById('raw-acc').textContent = mag.toFixed(2);
 
+                    // Filtro de Média Móvel para reduzir ruído
+                    buffer.push(mag);
+                    if(buffer.length > 8) buffer.shift();
+                    const filtered = buffer.reduce((a,b)=>a+b,0) / buffer.length;
+                    
+                    document.getElementById('filt-acc').textContent = filtered.toFixed(2);
+
+                    // Detecção de Passo (>13.2 de força)
                     const now = Date.now();
-                    if (mag > 13.5 && (now - state.lastStep > 350)) {
-                        if (state.mode !== 'IDLE') onStep(mag - 9.8);
+                    if (filtered > 13.2 && (now - state.lastStep > 330)) {
+                        if (state.mode !== 'IDLE') triggerStep(filtered - 9.8);
                         state.lastStep = now;
                     }
                 }, true);
@@ -258,49 +284,44 @@
                     }
                 }, true);
 
-                document.getElementById('setup-area').classList.add('hidden');
-                document.getElementById('active-area').classList.remove('hidden');
-                document.getElementById('ml-status').textContent = "Aguardando Treino";
-                addLog("Sensores ativos com sucesso!", "#4ade80");
+                addLog("Sensores ativos perfeitamente!", "#4ade80");
 
             } catch(e) {
-                addLog("FALHA NOS SENSORES: " + e.message, "#f87171");
-                addLog("Modo de Simulação Ativo.", "#fbbf24");
-                // Libera os controles mesmo com erro para permitir simulação
-                document.getElementById('setup-area').classList.add('hidden');
-                document.getElementById('active-area').classList.remove('hidden');
+                addLog("AVISO DOS SENSORES: " + e.message, "#fbbf24");
+                addLog("O Modo Manual / Simulação foi ativado.", "#60a5fa");
             }
+
+            // A interface é liberada quer o sensor funcione ou não
+            document.getElementById('setup-area').classList.add('hidden');
+            document.getElementById('active-area').classList.remove('hidden');
         }
 
-        // --- TREINO GPS ---
+        // --- TREINAMENTO (GPS) ---
         function runCalibration() {
             state.mode = 'TRAINING';
             state.tSteps = 0;
-            state.tVars = [];
-            addLog("Buscando GPS para calibração...");
-            document.getElementById('sys-mode').textContent = "CALIBRANDO";
+            document.getElementById('sys-mode').textContent = "TREINANDO";
+            addLog("Aguardando fix de satélite GPS...");
 
             navigator.geolocation.getCurrentPosition((p) => {
                 state.tGPS = p.coords;
-                addLog("Ponto de partida fixado. Caminhe 15 passos.");
+                addLog("Sinal fixado. Caminhe em linha reta por 15 segundos.", "#fbbf24");
                 
-                // Verifica final do treino após 20 segundos
                 setTimeout(() => {
                     navigator.geolocation.getCurrentPosition((end) => {
                         const d = calculateDistance(state.tGPS, end.coords);
-                        const v = state.tVars.length > 0 ? (state.tVars.reduce((a,b)=>a+b,0) / state.tVars.length) : 3;
+                        state.ai.update(d, state.tSteps);
                         
-                        state.ai.update(d, state.tSteps, v);
                         state.mode = 'IDLE';
                         document.getElementById('sys-mode').textContent = "STANDBY";
-                        addLog(`IA Otimizada! Passo base: ${state.ai.stepBase.toFixed(2)}m`, "#4ade80");
+                        addLog(`IA Otimizada! (Base = ${state.ai.stepBase.toFixed(2)}m)`, "#4ade80");
                         
                         const btn = document.getElementById('btn-run');
                         btn.disabled = false;
-                        btn.className = "bg-blue-600 text-white py-4 rounded-2xl font-bold text-[11px] uppercase shadow-lg";
-                    }, (err) => addLog("Erro GPS final: " + err.message, "#f87171"), {enableHighAccuracy: true});
+                        btn.className = "bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-[12px] uppercase shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all";
+                    }, (err) => addLog("Erro GPS 2: " + err.message, "#f87171"), {enableHighAccuracy: true});
                 }, 15000);
-            }, (err) => addLog("Erro GPS inicial: " + err.message, "#f87171"), {enableHighAccuracy: true});
+            }, (err) => addLog("Erro GPS 1: Ative a localização. (" + err.message + ")", "#f87171"), {enableHighAccuracy: true});
         }
 
         function calculateDistance(c1, c2) {
@@ -311,11 +332,11 @@
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        // --- BINDINGS ---
+        // --- EVENTOS DE CLIQUE ---
         document.getElementById('btn-init').onclick = async () => {
-            if(init3D()) {
-                await startSystem();
-            }
+            // Regra Ouro: Pedir sensores PRIMEIRO no clique, iniciar gráficos DEPOIS
+            await requestSensors();
+            init3D();
         };
 
         document.getElementById('btn-train').onclick = runCalibration;
@@ -327,22 +348,25 @@
                 btn.textContent = "Continuar";
                 btn.classList.replace('bg-red-600', 'bg-blue-600');
                 document.getElementById('sys-mode').textContent = "PAUSADO";
+                addLog("Navegação pausada.");
             } else {
                 state.mode = 'RUNNING';
                 btn.textContent = "Pausar";
                 btn.classList.replace('bg-blue-600', 'bg-red-600');
                 document.getElementById('sys-mode').textContent = "RASTREANDO";
+                addLog("Navegação Inercial Iniciada!", "#4ade80");
             }
         };
 
         document.getElementById('btn-simulate').onclick = () => {
-            onStep(3.5);
-            addLog("Passo simulado (Manual)");
+            triggerStep(3.5); // Simula uma variância média
+            addLog("Passo injetado manualmente para teste.");
         };
 
         document.getElementById('btn-clear').onclick = () => {
             state.path = [new THREE.Vector3(player.position.x, 0, player.position.z)];
             trail.geometry.setFromPoints(state.path);
+            addLog("Trajeto anterior limpo do ecrã.");
         };
 
         document.getElementById('btn-reset').onclick = () => location.reload();
