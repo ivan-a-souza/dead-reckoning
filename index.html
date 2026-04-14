@@ -3,143 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Navegação Estimada 3D</title>
-    <!-- Bibliotecas Externas -->
+    <title>Dead Reckoning 3D</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #0a0a0b; color: #fff; font-family: system-ui, -apple-system, sans-serif; }
-        canvas { display: block; }
-        .ui-layer { position: absolute; inset: 0; pointer-events: none; z-index: 50; display: flex; flex-direction: column; justify-content:空间-between; padding: 1rem; }
+        body { margin: 0; overflow: hidden; background: #050507; color: #fff; font-family: sans-serif; }
+        canvas { display: block; touch-action: none; }
+        .ui-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; display: flex; flex-direction: column; padding: 1rem; }
         .interactive { pointer-events: auto; }
-        .glass { background: rgba(15, 15, 20, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1.5rem; }
-        #log-window { font-family: monospace; font-size: 10px; height: 80px; overflow-y: auto; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 8px; pointer-events: auto; }
-        .step-pulse { animation: pulse 0.4s ease-out; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 100% { box-shadow: 0 0 0 20px rgba(59, 130, 246, 0); } }
+        .glass { background: rgba(15, 15, 20, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1rem; }
+        #log-window { font-family: monospace; font-size: 10px; height: 100px; overflow-y: auto; background: rgba(0,0,0,0.8); padding: 10px; border: 1px solid #333; }
+        .active-glow { box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); border-color: rgba(59, 130, 246, 0.5); }
     </style>
 </head>
 <body>
 
-    <div class="ui-layer">
-        <!-- Topo: Stats -->
-        <div class="glass p-4 flex justify-between items-center shadow-xl interactive">
+    <div class="ui-overlay">
+        <!-- Dashboard Superior -->
+        <div class="glass p-4 flex justify-between items-center interactive shadow-2xl mb-2">
             <div>
-                <p class="text-[10px] opacity-50 uppercase font-bold tracking-wider">Distância</p>
+                <p class="text-[10px] opacity-50 uppercase font-bold">Distância</p>
                 <h1 id="dist-val" class="text-2xl font-black text-blue-400">0.00m</h1>
             </div>
             <div class="text-right">
-                <p class="text-[10px] opacity-50 uppercase font-bold tracking-wider">Direção</p>
+                <p class="text-[10px] opacity-50 uppercase font-bold">Ângulo</p>
                 <h1 id="hd-val" class="text-2xl font-black text-white">0°</h1>
             </div>
         </div>
 
-        <!-- Centro: Logs de Depuração -->
-        <div class="flex flex-col gap-2">
-            <div id="log-window" class="text-green-400">
-                > Sistema pronto. Aguardando interação...
-            </div>
+        <!-- Monitor de Sensores (Debug) -->
+        <div id="log-window" class="interactive rounded-lg mb-2">
+            <div class="text-blue-400 border-b border-blue-900/30 pb-1 mb-1 font-bold uppercase text-[9px]">Log de Sistema</div>
+            <div id="log-content">Aguardando ativação...</div>
         </div>
 
-        <!-- Fundo: Controlos -->
-        <div class="glass p-6 shadow-2xl space-y-4 interactive mb-4">
-            <!-- Ecrã de Inicialização -->
-            <div id="init-ui" class="space-y-4">
-                <h2 class="text-center font-bold">Acesso aos Sensores</h2>
-                <p class="text-[11px] text-gray-400 text-center">Para rastrear movimento sem GPS, precisamos de aceder ao acelerómetro e à bússola.</p>
-                <button id="btn-perms" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl transition-all active:scale-95 shadow-lg shadow-blue-900/40">
-                    ATIVAR SENSORES
+        <div class="flex-grow"></div>
+
+        <!-- Painel de Controle -->
+        <div class="glass p-5 interactive shadow-2xl space-y-4">
+            <div id="setup-view">
+                <button id="btn-start-all" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-xl uppercase tracking-widest transition-all active:scale-95 shadow-lg">
+                    Iniciar Sistema
                 </button>
+                <p class="text-[10px] text-gray-500 text-center mt-3">Requer HTTPS e sensores de movimento ativos no navegador.</p>
             </div>
 
-            <!-- Ecrã de Modos -->
-            <div id="main-ui" class="hidden space-y-4">
-                <!-- Treino -->
-                <div id="training-box" class="space-y-2">
-                    <p class="text-[10px] text-yellow-500 font-bold uppercase">Calibração</p>
-                    <div class="flex gap-2">
-                        <button id="btn-train-start" class="flex-1 bg-yellow-600/20 text-yellow-500 border border-yellow-600/40 py-3 rounded-lg text-sm font-bold">Iniciar Treino</button>
-                        <button id="btn-train-stop" disabled class="flex-1 bg-gray-800 text-gray-500 py-3 rounded-lg text-sm font-bold opacity-30">Parar (10m)</button>
-                    </div>
-                </div>
-
-                <!-- Execução -->
-                <div id="execution-box" class="hidden space-y-2 border-t border-white/10 pt-4">
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold">Rastreio Ativo</span>
-                        <span id="step-info" class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-1 rounded">Passo: 0.75m</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <button id="btn-run-toggle" class="flex-1 bg-green-600 text-white py-4 rounded-xl font-black text-sm uppercase">Começar</button>
-                        <button id="btn-reset" class="bg-red-950/40 text-red-500 px-4 py-4 rounded-xl border border-red-900/50">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
-                        </button>
-                    </div>
+            <div id="control-view" class="hidden space-y-4">
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-train" class="bg-yellow-600/20 text-yellow-500 border border-yellow-600/30 py-3 rounded-lg font-bold text-xs uppercase">Treinar Passo</button>
+                    <button id="btn-run" disabled class="bg-gray-800 text-gray-500 py-3 rounded-lg font-bold text-xs uppercase opacity-50">Rastrear</button>
                 </div>
                 
-                <!-- Botão de Emergência para PC -->
-                <button id="btn-manual" class="w-full py-2 text-[9px] text-gray-500 border border-dashed border-gray-700 rounded mt-2">FORÇAR PASSO (SIMULAÇÃO)</button>
+                <div class="flex gap-2">
+                    <button id="btn-manual" class="flex-1 bg-white/5 text-gray-400 py-2 rounded-lg text-[10px] border border-white/10 uppercase">Simular Passo</button>
+                    <button id="btn-reset" class="px-4 bg-red-900/20 text-red-500 border border-red-900/30 rounded-lg">Reset</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // --- ESTADO DA APLICAÇÃO ---
-        const state = {
+        // --- CONSTANTES E ESTADO ---
+        let state = {
+            active: false,
             mode: 'IDLE', // IDLE, TRAINING, RUNNING
             stepLength: 0.75,
             steps: 0,
             distance: 0,
             heading: 0,
             lastStepTime: 0,
-            path: [new THREE.Vector3(0, 0, 0)],
-            pos: { x: 0, z: 0 }
+            pos: { x: 0, z: 0 },
+            path: [new THREE.Vector3(0, 0, 0)]
         };
 
-        // --- LOGGER ---
-        const logger = document.getElementById('log-window');
-        function log(msg, color = "#4ade80") {
-            const div = document.createElement('div');
-            div.style.color = color;
-            div.textContent = `> ${msg}`;
-            logger.appendChild(div);
-            logger.scrollTop = logger.scrollHeight;
+        const logContent = document.getElementById('log-content');
+        function addLog(msg, color = "#fff") {
+            const line = document.createElement('div');
+            line.style.color = color;
+            line.innerHTML = `<span style="opacity:0.3">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
+            logContent.prepend(line);
         }
 
         // --- MOTOR 3D ---
-        let scene, camera, renderer, marker, trail;
+        let scene, camera, renderer, player, trail;
 
-        function initScene() {
+        function init3D() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x050507);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 15, 12);
-            camera.lookAt(0, 0, 0);
-
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(renderer.domElement);
 
-            // Grade e Luz
+            // Luzes e Chão
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
             const grid = new THREE.GridHelper(200, 50, 0x222222, 0x111111);
             scene.add(grid);
-            
-            // Marcador de posição
-            marker = new THREE.Mesh(
-                new THREE.SphereGeometry(0.4, 16, 16),
-                new THREE.MeshBasicMaterial({ color: 0xff3333 })
-            );
-            marker.position.y = 0.4;
-            scene.add(marker);
 
-            // Linha de Trajeto
-            const lineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, linewidth: 2 });
-            const lineGeo = new THREE.BufferGeometry().setFromPoints(state.path);
-            trail = new THREE.Line(lineGeo, lineMat);
+            // Jogador
+            player = new THREE.Mesh(
+                new THREE.SphereGeometry(0.5, 32, 32),
+                new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x1d4ed8, emissiveIntensity: 0.5 })
+            );
+            player.position.y = 0.5;
+            scene.add(player);
+
+            // Rastro
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x60a5fa, linewidth: 2 });
+            trail = new THREE.Line(new THREE.BufferGeometry().setFromPoints(state.path), lineMat);
             scene.add(trail);
 
+            camera.position.set(0, 15, 12);
+            camera.lookAt(0, 0, 0);
+
             animate();
+            addLog("Motor 3D Iniciado", "#4ade80");
         }
 
         function animate() {
@@ -147,50 +127,41 @@
             renderer.render(scene, camera);
         }
 
-        // --- LÓGICA DE MOVIMENTO ---
-        function registerStep(distance) {
-            // Converter Heading da bússola para coordenadas 3D (Z negativo é "frente")
+        function updatePosition(dist) {
+            // No Three.js, -Z é para a frente. Bússola 0° = Norte.
             const rad = state.heading * (Math.PI / 180);
-            const dx = Math.sin(rad) * distance;
-            const dz = -Math.cos(rad) * distance;
+            const dx = Math.sin(rad) * dist;
+            const dz = -Math.cos(rad) * dist;
 
             state.pos.x += dx;
             state.pos.z += dz;
 
-            // Atualizar 3D
-            marker.position.set(state.pos.x, 0.4, state.pos.z);
+            player.position.set(state.pos.x, 0.5, state.pos.z);
             state.path.push(new THREE.Vector3(state.pos.x, 0, state.pos.z));
             trail.geometry.setFromPoints(state.path);
 
-            // Câmara segue
             camera.position.x = state.pos.x;
             camera.position.z = state.pos.z + 15;
             camera.lookAt(state.pos.x, 0, state.pos.z);
 
-            // Atualizar UI
             if (state.mode === 'RUNNING') {
-                state.distance += distance;
+                state.distance += dist;
                 document.getElementById('dist-val').textContent = state.distance.toFixed(2) + "m";
             }
-            
-            // Feedback Visual
-            document.getElementById('dist-val').parentElement.classList.add('step-pulse');
-            setTimeout(() => document.getElementById('dist-val').parentElement.classList.remove('step-pulse'), 400);
         }
 
         // --- SENSORES ---
-        async function initSensors() {
-            log("Iniciando sensores...");
-            
+        async function requestSensors() {
+            addLog("Solicitando permissões...");
+
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 try {
-                    const motion = await DeviceMotionEvent.requestPermission();
-                    const orient = await DeviceOrientationEvent.requestPermission();
-                    if (motion !== 'granted') throw new Error("Permissão de movimento negada");
-                    log("Sensores iOS OK", "#3b82f6");
-                } catch(e) {
-                    log("Erro: " + e.message, "#f87171");
-                    return;
+                    const permission = await DeviceMotionEvent.requestPermission();
+                    addLog("Status Motion: " + permission);
+                    if (permission !== 'granted') throw new Error("Acesso negado");
+                } catch (e) {
+                    addLog("Erro iOS: " + e.message, "#f87171");
+                    return false;
                 }
             }
 
@@ -198,21 +169,22 @@
                 const acc = e.accelerationIncludingGravity || e.acceleration;
                 if (!acc) return;
                 
-                const magnitude = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
-                
-                // Algoritmo simples de Step Detection
+                const mag = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
                 const now = Date.now();
-                if (magnitude > 13.8 && (now - state.lastStepTime > 300)) {
+
+                // Detecção de passo (Magnitude > 13.5 e intervalo > 300ms)
+                if (mag > 13.5 && (now - state.lastStepTime > 300)) {
                     if (state.mode !== 'IDLE') {
                         state.steps++;
-                        registerStep(state.stepLength);
+                        updatePosition(state.stepLength);
                         state.lastStepTime = now;
-                        log(`Passo #${state.steps} detetado`);
+                        addLog(`Passo detectado! Total: ${state.steps}`, "#60a5fa");
                     }
                 }
             }, true);
 
             window.addEventListener('deviceorientation', (e) => {
+                // webkitCompassHeading para iOS, alpha para Android
                 let h = e.webkitCompassHeading || (360 - e.alpha);
                 if (h !== undefined) {
                     state.heading = h;
@@ -220,56 +192,59 @@
                 }
             }, true);
 
-            document.getElementById('init-ui').classList.add('hidden');
-            document.getElementById('main-ui').classList.remove('hidden');
-            log("Rastreio pronto. Inicie o Treino.");
+            return true;
         }
 
-        // --- BOTÕES E EVENTOS ---
-        document.getElementById('btn-perms').onclick = () => {
-            initScene();
-            initSensors();
-        };
-
-        document.getElementById('btn-train-start').onclick = () => {
-            state.mode = 'TRAINING';
-            state.steps = 0;
-            log("TREINO: Caminhe exatamente 10 metros.", "#fbbf24");
-            document.getElementById('btn-train-start').disabled = true;
-            document.getElementById('btn-train-stop').disabled = false;
-            document.getElementById('btn-train-stop').classList.remove('opacity-30', 'bg-gray-800');
-            document.getElementById('btn-train-stop').classList.add('bg-green-600', 'text-white');
-        };
-
-        document.getElementById('btn-train-stop').onclick = () => {
-            if (state.steps > 0) {
-                state.stepLength = 10 / state.steps;
-                log(`Calibrado! Comprimento do passo: ${state.stepLength.toFixed(2)}m`, "#3b82f6");
-                document.getElementById('step-info').textContent = `Passo: ${state.stepLength.toFixed(2)}m`;
+        // --- CONTROLES ---
+        document.getElementById('btn-start-all').onclick = async () => {
+            init3D();
+            const success = await requestSensors();
+            if (success) {
+                document.getElementById('setup-view').classList.add('hidden');
+                document.getElementById('control-view').classList.remove('hidden');
             }
-            state.mode = 'IDLE';
-            document.getElementById('training-box').classList.add('hidden');
-            document.getElementById('execution-box').classList.remove('hidden');
         };
 
-        document.getElementById('btn-run-toggle').onclick = () => {
-            const btn = document.getElementById('btn-run-toggle');
-            if (state.mode === 'RUNNING') {
+        document.getElementById('btn-train').onclick = () => {
+            const btn = document.getElementById('btn-train');
+            if (state.mode !== 'TRAINING') {
+                state.mode = 'TRAINING';
+                state.steps = 0;
+                btn.textContent = "PARAR (ANDOU 10M?)";
+                btn.classList.replace('bg-yellow-600/20', 'bg-yellow-600');
+                btn.classList.replace('text-yellow-500', 'text-black');
+                addLog("TREINO: Ande 10 metros em linha reta", "#fbbf24");
+            } else {
+                if (state.steps > 0) {
+                    state.stepLength = 10 / state.steps;
+                    addLog(`Calibrado! Passo: ${state.stepLength.toFixed(2)}m`, "#4ade80");
+                    document.getElementById('btn-run').disabled = false;
+                    document.getElementById('btn-run').classList.remove('opacity-50', 'bg-gray-800');
+                    document.getElementById('btn-run').classList.add('bg-green-600', 'text-white');
+                }
+                state.mode = 'IDLE';
+                btn.classList.add('hidden');
+            }
+        };
+
+        document.getElementById('btn-run').onclick = () => {
+            const btn = document.getElementById('btn-run');
+            if (state.mode !== 'RUNNING') {
+                state.mode = 'RUNNING';
+                btn.textContent = "PAUSAR RASTREIO";
+                btn.classList.replace('bg-green-600', 'bg-red-600');
+                addLog("Rastreio Iniciado", "#4ade80");
+            } else {
                 state.mode = 'IDLE';
                 btn.textContent = "RETOMAR";
                 btn.classList.replace('bg-red-600', 'bg-green-600');
-                log("Pausado.");
-            } else {
-                state.mode = 'RUNNING';
-                btn.textContent = "PAUSAR";
-                btn.classList.replace('bg-green-600', 'bg-red-600');
-                log("Rastreando movimento...");
+                addLog("Rastreio Pausado");
             }
         };
 
         document.getElementById('btn-manual').onclick = () => {
-            log("Simulação de passo manual");
-            registerStep(state.stepLength);
+            updatePosition(state.stepLength);
+            addLog("Passo simulado manualmente");
         };
 
         document.getElementById('btn-reset').onclick = () => location.reload();
@@ -281,7 +256,6 @@
                 renderer.setSize(window.innerWidth, window.innerHeight);
             }
         };
-
     </script>
 </body>
 </html>
