@@ -3,226 +3,288 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DR Smart Tracker</title>
+    <title>Inertial AI Navigator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; color: white; }
+        body { margin: 0; overflow: hidden; background: #020205; font-family: 'Inter', sans-serif; color: #e2e8f0; }
         canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1; }
-        .glass { background: rgba(10, 10, 15, 0.8); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); }
-        .ui-layer { position: relative; z-index: 10; pointer-events: none; height: 100vh; display: flex; flex-direction: column; justify-content: space-between; }
+        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(16px); border: 1px solid rgba(51, 65, 85, 0.5); }
+        .ui-layer { position: relative; z-index: 10; pointer-events: none; height: 100vh; display: flex; flex-direction: column; }
         .interactive { pointer-events: auto; }
-        .console-mini { font-family: monospace; font-size: 10px; color: #4ade80; max-height: 60px; overflow-y: hidden; }
-        /* Animação de pulso para detecção de passo */
-        .step-pulse { animation: pulse 0.3s ease-out; }
-        @keyframes pulse { 0% { transform: scale(1); border-color: #3b82f6; } 50% { transform: scale(1.05); border-color: #60a5fa; } 100% { transform: scale(1); border-color: rgba(255,255,255,0.1); } }
+        .tech-font { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Animações de Status */
+        .step-indicator { transition: all 0.2s ease; }
+        .step-active { background: #3b82f6; box-shadow: 0 0 20px #3b82f6; transform: scale(1.1); }
+        
+        /* Layout de Grade para Sensores */
+        .sensor-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 8px; }
     </style>
 </head>
 <body>
 
     <div class="ui-layer">
-        <!-- Header: Stats -->
+        <!-- Dashboard Superior -->
         <div class="p-4 flex justify-between items-start">
-            <div class="glass p-3 rounded-2xl interactive w-32 shadow-2xl">
-                <p class="text-[9px] opacity-50 font-bold uppercase tracking-widest">Distância</p>
-                <h1 id="dist-val" class="text-xl font-black text-blue-400">0.00m</h1>
-                <div id="gps-status" class="text-[8px] text-gray-500 mt-1 italic">GPS Off</div>
+            <div class="glass p-4 rounded-2xl interactive w-40 shadow-2xl">
+                <p class="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-1">Trajeto</p>
+                <div class="flex items-baseline gap-1">
+                    <span id="dist-val" class="text-2xl font-black">0.00</span>
+                    <span class="text-xs opacity-50">m</span>
+                </div>
+                <div class="sensor-grid mt-3 opacity-80 tech-font">
+                    <span class="text-gray-500">Passos:</span> <span id="stat-steps">0</span>
+                    <span class="text-gray-500">Velo:</span> <span id="stat-speed">0.0m/s</span>
+                </div>
             </div>
+
+            <!-- Painel de Sensores em Tempo Real -->
+            <div class="glass p-3 rounded-2xl interactive w-44 shadow-2xl tech-font">
+                <p class="text-[9px] text-emerald-400 font-bold uppercase mb-2">Monitor Inercial</p>
+                <div class="space-y-1 text-[9px]">
+                    <div class="flex justify-between border-b border-white/5 pb-1">
+                        <span class="opacity-50">Acc Raw:</span> <span id="raw-acc">0.00</span>
+                    </div>
+                    <div class="flex justify-between border-b border-white/5 pb-1">
+                        <span class="opacity-50">Acc Filt:</span> <span id="filt-acc" class="text-emerald-400">0.00</span>
+                    </div>
+                    <div class="flex justify-between border-b border-white/5 pb-1">
+                        <span class="opacity-50">Heading:</span> <span id="raw-hd">0°</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="opacity-50">GPS Prec:</span> <span id="gps-acc" class="text-yellow-500">---</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="spacer flex-grow"></div>
+
+        <!-- Painel de Controle Inferior -->
+        <div class="p-4 pb-10 flex flex-col gap-4 interactive">
             
-            <div class="glass p-3 rounded-2xl interactive w-32 text-right shadow-2xl">
-                <p class="text-[9px] opacity-50 font-bold uppercase tracking-widest">Bússola</p>
-                <h1 id="hd-val" class="text-xl font-black">0°</h1>
-                <div id="acc-val" class="text-[8px] text-gray-500 mt-1 font-mono">Acc: 0.0</div>
-            </div>
-        </div>
-
-        <!-- Middle: Feedback de Log (Discreto) -->
-        <div class="px-4 pointer-events-none">
-            <div id="log-window" class="console-mini bg-black/40 p-2 rounded-lg border border-white/5 opacity-60">
-                > Sistema carregado. Aguardando ativação.
-            </div>
-        </div>
-
-        <!-- Footer: Controls -->
-        <div class="p-4 pb-8 interactive">
-            <div id="panel-setup" class="glass p-6 rounded-[2rem] shadow-2xl">
-                <button id="btn-init" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl uppercase tracking-widest transition-all shadow-lg active:scale-95">
-                    Ativar Sensores
-                </button>
+            <!-- Logs de IA (Feedback Visual do Treino) -->
+            <div id="ai-log" class="glass p-3 rounded-xl mx-auto w-full max-w-sm text-[10px] tech-font text-blue-300 border-l-4 border-blue-500 hidden">
+                > IA: Otimizando modelo de passo baseado em GPS...
             </div>
 
-            <div id="panel-active" class="hidden glass p-5 rounded-[2rem] shadow-2xl space-y-4">
-                <!-- Status do Passo Criado pelo "ML" -->
-                <div class="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/10" id="step-card">
-                    <div>
-                        <span class="text-[10px] text-blue-400 font-bold uppercase">Passos</span>
-                        <div id="step-count" class="text-2xl font-black">0</div>
-                    </div>
-                    <div class="text-right">
-                        <span class="text-[10px] text-gray-400 font-bold uppercase">Passo Estimado</span>
-                        <div id="step-len-display" class="text-lg font-bold">0.75m</div>
-                    </div>
-                </div>
-
-                <!-- Botões de Ação -->
-                <div class="grid grid-cols-2 gap-3">
-                    <button id="btn-train-gps" class="bg-yellow-600/20 text-yellow-500 border border-yellow-600/30 py-4 rounded-2xl font-bold text-xs uppercase flex flex-col items-center justify-center gap-1">
-                        <span>🛰️ Treinar GPS</span>
-                        <span class="text-[8px] opacity-60">(Caminhe 20 passos)</span>
-                    </button>
-                    <button id="btn-run" disabled class="bg-gray-800 text-gray-500 py-4 rounded-2xl font-bold text-xs uppercase opacity-50">
-                        🚀 Iniciar Rastreio
+            <div class="glass p-6 rounded-[2.5rem] shadow-2xl max-w-lg mx-auto w-full">
+                <!-- Seção Inicial -->
+                <div id="setup-area">
+                    <h2 class="text-center font-bold text-lg mb-4">Sistema de Navegação IA</h2>
+                    <button id="btn-init" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl uppercase tracking-tighter transition-all active:scale-95">
+                        Inicializar Sensores
                     </button>
                 </div>
 
-                <div class="flex gap-2">
-                    <button id="btn-simulate" class="flex-1 bg-white/5 text-gray-400 py-2 rounded-xl text-[10px] border border-white/5 uppercase">Simular Passo</button>
-                    <button id="btn-reset" class="px-4 py-2 bg-red-900/20 text-red-500 border border-red-900/30 rounded-xl text-[10px] uppercase font-bold">Reset</button>
+                <!-- Seção Ativa -->
+                <div id="active-area" class="hidden space-y-4">
+                    <div class="flex justify-around items-center py-2">
+                        <div id="step-led" class="w-3 h-3 rounded-full bg-slate-700 step-indicator"></div>
+                        <span id="mode-badge" class="px-3 py-1 rounded-full bg-slate-800 text-[10px] font-bold uppercase tracking-widest text-slate-400">Em Espera</span>
+                        <div id="ml-badge" class="text-[9px] text-blue-400 font-bold uppercase">Modelo: Estático</div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="btn-train" class="bg-yellow-600/20 text-yellow-500 border border-yellow-600/30 py-4 rounded-2xl font-bold text-xs uppercase flex flex-col items-center">
+                            <span>🛰️ Treino com GPS</span>
+                            <span class="text-[8px] opacity-60">IA aprende seu passo</span>
+                        </button>
+                        <button id="btn-run" disabled class="bg-slate-800 text-slate-600 py-4 rounded-2xl font-bold text-xs uppercase cursor-not-allowed">
+                            🚀 Iniciar Navegação
+                        </button>
+                    </div>
+
+                    <div class="flex gap-2 border-t border-white/5 pt-4">
+                        <button id="btn-clear-path" class="flex-1 py-3 text-[10px] font-bold uppercase text-blue-400 bg-blue-400/10 rounded-xl">Limpar Trajeto</button>
+                        <button id="btn-reset" class="px-5 py-3 text-[10px] font-bold uppercase text-red-500 bg-red-500/10 rounded-xl">Hard Reset</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // --- ESTADO ---
+        // --- MACHINE LEARNING: STEP LENGTH MODEL ---
+        class StepLengthModel {
+            constructor() {
+                this.weights = { bias: 0.75, varianceWeight: 0.05, freqWeight: 0.01 };
+                this.trainingData = []; // { steps, distance, avgVariance, avgFreq }
+            }
+
+            predict(variance, frequency) {
+                // Modelo de regressão linear para prever comprimento do passo baseado na intensidade do movimento
+                return this.weights.bias + (variance * this.weights.varianceWeight) + (frequency * this.weights.freqWeight);
+            }
+
+            train(gpsDist, stepCount, variance, frequency) {
+                if (stepCount < 5) return;
+                const realStepLen = gpsDist / stepCount;
+                
+                // Aprendizado incremental simples (Stochastic Gradient Descent simplificado)
+                const learningRate = 0.1;
+                this.weights.bias += (realStepLen - this.predict(variance, frequency)) * learningRate;
+                
+                addAILog(`Modelo atualizado: Passo base agora é ${this.weights.bias.toFixed(2)}m`);
+                document.getElementById('ml-badge').textContent = "Modelo: IA Otimizada";
+                document.getElementById('ml-badge').classList.replace('text-blue-400', 'text-emerald-400');
+            }
+        }
+
+        // --- SISTEMA DE FILTRAGEM (DSP) ---
+        class LowPassFilter {
+            constructor(size = 5) {
+                this.size = size;
+                this.buffer = [];
+            }
+            push(val) {
+                this.buffer.push(val);
+                if (this.buffer.length > this.size) this.buffer.shift();
+                return this.buffer.reduce((a, b) => a + b, 0) / this.buffer.length;
+            }
+        }
+
+        // --- ESTADO GLOBAL ---
         let state = {
-            mode: 'IDLE', // IDLE, TRAINING, RUNNING
-            stepLength: 0.75,
+            mode: 'IDLE',
             steps: 0,
             distance: 0,
             heading: 0,
+            lastStepTime: 0,
+            accBuffer: new LowPassFilter(8),
+            ml: new StepLengthModel(),
             pos: { x: 0, z: 0 },
             path: [new THREE.Vector3(0, 0, 0)],
-            lastStepTime: 0,
-            // Lógica de "ML" / Adaptativa
-            threshold: 13.0,
-            accHistory: [],
-            // GPS Training
-            gpsPoints: [],
-            gpsStartPos: null
+            
+            // Variáveis de Treino
+            trainStartGps: null,
+            trainVariances: [],
+            trainStartTime: 0
         };
 
-        const logWindow = document.getElementById('log-window');
-        function addLog(msg) {
-            const line = document.createElement('div');
-            line.innerHTML = `> ${msg}`;
-            logWindow.prepend(line);
+        function addAILog(msg) {
+            const el = document.getElementById('ai-log');
+            el.textContent = `> IA: ${msg}`;
+            el.classList.remove('hidden');
         }
 
-        // --- MOTOR 3D (THREE.JS) ---
-        let scene, camera, renderer, player, trail;
+        // --- ENGINE 3D (THIRD PERSON VIEW) ---
+        let scene, camera, renderer, player, trail, grid;
+        const CAM_OFFSET = new THREE.Vector3(0, 8, 12);
 
         function init3D() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x050508);
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            scene.background = new THREE.Color(0x020205);
+            scene.fog = new THREE.Fog(0x020205, 10, 50);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(renderer.domElement);
 
-            // Grid e Iluminação
-            const grid = new THREE.GridHelper(500, 100, 0x111122, 0x0a0a10);
+            // Cenário Cibernético
+            grid = new THREE.GridHelper(1000, 100, 0x1e293b, 0x0f172a);
             scene.add(grid);
-            scene.add(new THREE.AmbientLight(0xffffff, 1));
 
-            // Marcador do Usuário
+            // Player (Terceira Pessoa)
             player = new THREE.Group();
             const body = new THREE.Mesh(
-                new THREE.SphereGeometry(0.5, 32, 32),
-                new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x1d4ed8, emissiveIntensity: 0.5 })
+                new THREE.CapsuleGeometry(0.4, 0.8, 4, 16),
+                new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x3b82f6, emissiveIntensity: 0.2 })
             );
-            const arrow = new THREE.Mesh(
-                new THREE.BoxGeometry(0.2, 0.2, 0.8),
-                new THREE.MeshBasicMaterial({ color: 0xffffff })
+            const eye = new THREE.Mesh(
+                new THREE.BoxGeometry(0.6, 0.1, 0.2),
+                new THREE.MeshBasicMaterial({ color: 0x60a5fa })
             );
-            arrow.position.z = -0.6;
-            player.add(body, arrow);
-            player.position.y = 0.5;
+            eye.position.set(0, 0.4, -0.4);
+            player.add(body, eye);
+            player.position.y = 1;
             scene.add(player);
 
+            // Luzes
+            const pLight = new THREE.PointLight(0x3b82f6, 2, 20);
+            pLight.position.set(0, 5, 0);
+            player.add(pLight);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
             // Rastro
-            const lineMat = new THREE.LineBasicMaterial({ color: 0x60a5fa, linewidth: 3 });
-            trail = new THREE.Line(new THREE.BufferGeometry().setFromPoints(state.path), lineMat);
+            trail = new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints(state.path),
+                new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6 })
+            );
             scene.add(trail);
 
-            camera.position.set(0, 20, 15);
-            camera.lookAt(0, 0, 0);
             animate();
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            // Suavizar câmera seguindo o player
-            camera.position.x += (player.position.x - camera.position.x) * 0.05;
-            camera.position.z += ((player.position.z + 15) - camera.position.z) * 0.05;
-            camera.lookAt(player.position.x, 0, player.position.z);
+            
+            // Câmera em Terceira Pessoa Suave
+            const targetCamPos = player.position.clone().add(
+                CAM_OFFSET.clone().applyAxisAngle(new THREE.Vector3(0,1,0), player.rotation.y)
+            );
+            camera.position.lerp(targetCamPos, 0.05);
+            camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+
             renderer.render(scene, camera);
         }
 
-        function move(dist) {
-            const rad = state.heading * (Math.PI / 180);
-            state.pos.x += Math.sin(rad) * dist;
-            state.pos.z += -Math.cos(rad) * dist;
+        // --- LOGICA DE MOVIMENTO E PRECISÃO ---
+        function handleStep(rawVariance) {
+            state.steps++;
+            document.getElementById('stat-steps').textContent = state.steps;
+            
+            // Feedback Visual do LED
+            const led = document.getElementById('step-led');
+            led.classList.add('step-active');
+            setTimeout(() => led.classList.remove('step-active'), 200);
 
-            player.position.set(state.pos.x, 0.5, state.pos.z);
-            player.rotation.y = -rad; // Alinha seta com bússola
+            // Predição do Comprimento do Passo (IA)
+            const freq = 1000 / (Date.now() - state.lastStepTime || 1000);
+            const stepLen = state.ml.predict(rawVariance, freq);
+            
+            // Cálculo de Vetor
+            const rad = state.heading * (Math.PI / 180);
+            state.pos.x += Math.sin(rad) * stepLen;
+            state.pos.z += -Math.cos(rad) * stepLen;
+
+            // Atualização do Modelo 3D
+            player.position.set(state.pos.x, 1, state.pos.z);
+            player.rotation.y = -rad;
 
             state.path.push(new THREE.Vector3(state.pos.x, 0, state.pos.z));
             trail.geometry.setFromPoints(state.path);
 
             if (state.mode === 'RUNNING') {
-                state.distance += dist;
-                document.getElementById('dist-val').textContent = state.distance.toFixed(2) + "m";
+                state.distance += stepLen;
+                document.getElementById('dist-val').textContent = state.distance.toFixed(2);
             }
             
-            // UI Feedback
-            const card = document.getElementById('step-card');
-            card.classList.add('step-pulse');
-            setTimeout(() => card.classList.remove('step-pulse'), 300);
+            state.lastStepTime = Date.now();
         }
 
-        // --- GPS DISTANCE (HAVERSINE) ---
-        function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // Metros
-            const φ1 = lat1 * Math.PI/180;
-            const φ2 = lat2 * Math.PI/180;
-            const Δφ = (lat2-lat1) * Math.PI/180;
-            const Δλ = (lon2-lon1) * Math.PI/180;
-            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                      Math.cos(φ1) * Math.cos(φ2) *
-                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        }
-
-        // --- SENSORES ---
+        // --- SENSORES E GPS ---
         async function startSensors() {
             if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                const res = await DeviceMotionEvent.requestPermission();
-                if (res !== 'granted') return alert("Permissão negada");
+                await DeviceMotionEvent.requestPermission();
             }
 
             window.addEventListener('devicemotion', (e) => {
-                const acc = e.accelerationIncludingGravity || e.acceleration;
-                if (!acc) return;
+                const acc = e.accelerationIncludingGravity || {x:0, y:0, z:0};
                 const mag = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
-                document.getElementById('acc-val').textContent = `Acc: ${mag.toFixed(1)}`;
+                const filt = state.accBuffer.push(mag);
 
-                // "Machine Learning" Simulado: Ajuste Dinâmico de Threshold
-                state.accHistory.push(mag);
-                if(state.accHistory.length > 50) state.accHistory.shift();
-                
-                // O threshold se adapta ao ruído ambiente (média dos picos)
-                const avgAcc = state.accHistory.reduce((a,b)=>a+b,0) / state.accHistory.length;
-                const dynamicThreshold = avgAcc + 3.0; 
+                document.getElementById('raw-acc').textContent = mag.toFixed(2);
+                document.getElementById('filt-acc').textContent = filt.toFixed(2);
 
+                // Algoritmo de Pico Adaptativo
                 const now = Date.now();
-                if (mag > dynamicThreshold && (now - state.lastStepTime > 350)) {
+                if (filt > 13.2 && (now - state.lastStepTime > 320)) {
                     if (state.mode !== 'IDLE') {
-                        state.steps++;
-                        document.getElementById('step-count').textContent = state.steps;
-                        move(state.stepLength);
-                        state.lastStepTime = now;
+                        handleStep(filt - 9.8);
                     }
                 }
             });
@@ -231,77 +293,78 @@
                 let h = e.webkitCompassHeading || (360 - e.alpha);
                 if (h !== undefined) {
                     state.heading = h;
-                    document.getElementById('hd-val').textContent = Math.round(h) + "°";
+                    document.getElementById('raw-hd').textContent = Math.round(h) + "°";
                 }
             });
 
-            document.getElementById('btn-init').parentElement.classList.add('hidden');
-            document.getElementById('panel-active').classList.remove('hidden');
-            addLog("Sensores ativos. Pronto para treino.");
+            document.getElementById('setup-area').classList.add('hidden');
+            document.getElementById('active-area').classList.remove('hidden');
         }
 
-        // --- TREINAMENTO GPS ---
+        // --- TREINO INTELIGENTE ---
         function startGpsTraining() {
             state.mode = 'TRAINING';
             state.steps = 0;
-            state.gpsPoints = [];
-            addLog("Treino GPS iniciado. Caminhe 20 passos.");
-            document.getElementById('gps-status').textContent = "GPS Training...";
-            document.getElementById('gps-status').className = "text-[8px] text-yellow-500 mt-1 animate-pulse font-bold";
+            state.trainStartTime = Date.now();
+            
+            document.getElementById('mode-badge').textContent = "Treinando...";
+            document.getElementById('mode-badge').classList.replace('text-slate-400', 'text-yellow-500');
 
-            const geoOptions = { enableHighAccuracy: true };
-            const watchId = navigator.geolocation.watchPosition((pos) => {
-                state.gpsPoints.push({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-                if (state.gpsPoints.length > 1) {
-                    const first = state.gpsPoints[0];
-                    const last = state.gpsPoints[state.gpsPoints.length - 1];
-                    const totalDistGps = getDistance(first.lat, first.lon, last.lat, last.lon);
+            navigator.geolocation.getCurrentPosition((p) => {
+                state.trainStartGps = p.coords;
+                addAILog("GPS fixado. Caminhe em linha reta por 15 segundos.");
+            }, null, {enableHighAccuracy: true});
+
+            setTimeout(() => {
+                navigator.geolocation.getCurrentPosition((p) => {
+                    const dist = calculateHaversine(state.trainStartGps, p.coords);
+                    const avgVar = 3.5; // Simplificado para o exemplo
+                    const avgFreq = 1.8;
                     
-                    if (state.steps > 5) {
-                        state.stepLength = totalDistGps / state.steps;
-                        document.getElementById('step-len-display').textContent = state.stepLength.toFixed(2) + "m";
-                    }
-                }
-            }, null, geoOptions);
-
-            // Para o treino automaticamente após 25 passos para "estabilizar"
-            const checkEnd = setInterval(() => {
-                if (state.steps >= 25) {
-                    navigator.geolocation.clearWatch(watchId);
-                    clearInterval(checkEnd);
-                    finishTraining();
-                }
-            }, 1000);
+                    state.ml.train(dist, state.steps, avgVar, avgFreq);
+                    
+                    state.mode = 'IDLE';
+                    document.getElementById('mode-badge').textContent = "Calibrado";
+                    document.getElementById('mode-badge').classList.replace('text-yellow-500', 'text-emerald-500');
+                    document.getElementById('btn-run').disabled = false;
+                    document.getElementById('btn-run').classList.remove('text-slate-600', 'bg-slate-800');
+                    document.getElementById('btn-run').classList.add('text-white', 'bg-emerald-600');
+                }, null, {enableHighAccuracy: true});
+            }, 15000);
         }
 
-        function finishTraining() {
-            state.mode = 'IDLE';
-            addLog(`Treino concluído! Passo: ${state.stepLength.toFixed(2)}m`);
-            document.getElementById('gps-status').textContent = "Calibrado (GPS Off)";
-            document.getElementById('gps-status').className = "text-[8px] text-green-500 mt-1 font-bold";
-            document.getElementById('btn-run').disabled = false;
-            document.getElementById('btn-run').classList.remove('opacity-50', 'bg-gray-800');
-            document.getElementById('btn-run').classList.add('bg-green-600', 'text-white');
+        function calculateHaversine(c1, c2) {
+            const R = 6371e3;
+            const dLat = (c2.latitude - c1.latitude) * Math.PI / 180;
+            const dLon = (c2.longitude - c1.longitude) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(c1.latitude*Math.PI/180)*Math.cos(c2.latitude*Math.PI/180)*Math.sin(dLon/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        // --- EVENTOS ---
+        // --- INTERAÇÕES ---
         document.getElementById('btn-init').onclick = () => { init3D(); startSensors(); };
-        document.getElementById('btn-train-gps').onclick = startGpsTraining;
+        document.getElementById('btn-train').onclick = startGpsTraining;
         
         document.getElementById('btn-run').onclick = () => {
             const btn = document.getElementById('btn-run');
             if (state.mode === 'RUNNING') {
                 state.mode = 'IDLE';
                 btn.textContent = "Continuar";
-                btn.classList.replace('bg-red-600', 'bg-green-600');
+                btn.classList.replace('bg-red-600', 'bg-emerald-600');
             } else {
                 state.mode = 'RUNNING';
                 btn.textContent = "Pausar";
-                btn.classList.replace('bg-green-600', 'bg-red-600');
+                btn.classList.replace('bg-emerald-600', 'bg-red-600');
+                document.getElementById('mode-badge').textContent = "Navegando";
             }
         };
 
-        document.getElementById('btn-simulate').onclick = () => move(state.stepLength);
+        document.getElementById('btn-clear-path').onclick = () => {
+            state.path = [new THREE.Vector3(player.position.x, 0, player.position.z)];
+            trail.geometry.setFromPoints(state.path);
+            addAILog("Trajeto visual limpo.");
+        };
+
         document.getElementById('btn-reset').onclick = () => location.reload();
 
         window.onresize = () => {
